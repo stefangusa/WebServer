@@ -149,20 +149,26 @@ public class Helper {
                 removeLock = true;
 
             } else {
-                FileWriter writer = new FileWriter(resourceFile, flag);
-                writer.write(this.requestData.get("Body"));
-                writer.close();
+                if (this.requestData.containsKey("Body")) {
+                    FileWriter writer = new FileWriter(resourceFile, flag);
+                    writer.write(this.requestData.get("Body"));
+                    writer.close();
+                }
 
                 fileContent = this.readFile(resourceFile);
 
-                this.responseData.put("Content-Type", Files.probeContentType(Path.of(path)));
-                this.responseData.put("Body", fileContent);
-                this.responseData.put("Content-Length", String.valueOf(fileContent.getBytes().length));
+                if (!fileContent.isEmpty()) {
+                    this.responseData.put("Content-Type", Files.probeContentType(Path.of(path)));
+                    this.responseData.put("Body", fileContent);
+                    this.responseData.put("Content-Length", String.valueOf(fileContent.getBytes().length));
+                }
 
                 if (!fileExists && this.requestData.get("Method").equals("POST")) {
                     this.responseData.put("Code", ErrorCodes.CREATED);
-                } else {
+                } else if (!fileContent.isEmpty()){
                     this.responseData.put("Code", ErrorCodes.OK);
+                } else {
+                    this.responseData.put("Code", ErrorCodes.NO_CONTENT);
                 }
             }
         } catch (IOException e) {
@@ -200,7 +206,7 @@ public class Helper {
                 this.responseData.put("Resource", Helper.ERROR_DIR + "/InternalServerError.html");
 
             } else {
-                this.responseData.put("Code", ErrorCodes.OK);
+                this.responseData.put("Code", ErrorCodes.NO_CONTENT);
             }
         } finally {
             this.locks.get(this.path).unlock();
