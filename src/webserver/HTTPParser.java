@@ -7,16 +7,24 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+
+/*
+    Class implementing a simple HTTP request parser
+ */
 public class HTTPParser {
 
     static final String[] methods = {"GET", "HEAD", "PATCH", "POST", "DELETE", "PUT", "OPTIONS"};
 
+    // Method where the HTTP request is parsed and relevant fields (for a simple implementation
+    // of a server) are stored in a Map
     static Map<String, String> parseRequest(BufferedReader request) throws IOException {
+
         Map<String, String> data = new HashMap<>();
         String line;
         String[] lineContents;
 
         try {
+            // read the first request line and parse it => <METHOD> <RESOURCE> <PROTOCOL>
             line = request.readLine();
             lineContents = line.split("\\s");
 
@@ -40,6 +48,7 @@ public class HTTPParser {
             }
             data.put("Protocol", lineContents[2]);
 
+            // parse the next header lines and stores the Content-Length attribute if exists
             while ((line = request.readLine()) != null && !(line.equals(""))) {
                 if (!line.contains(": ")) {
                     return badRequest();
@@ -56,6 +65,7 @@ public class HTTPParser {
                 }
             }
 
+            // store the body data
             if (data.containsKey("Content-Length")) {
                 int length = Integer.parseInt(data.get("Content-Length"));
                 char[] requestBody = new char[length];
@@ -73,6 +83,7 @@ public class HTTPParser {
     }
 
 
+    // Method called when the request is invalid and 400 code should be returned
     private static Map<String, String> badRequest() {
         Map <String, String> data = new HashMap<>();
         data.put("Code", ErrorCodes.BAD);
@@ -80,6 +91,7 @@ public class HTTPParser {
     }
 
 
+    // Method parsing the response data from Map to byte array
     static byte[] createResponse(Map<String, String> responseData) {
         StringBuilder responseString = new StringBuilder();
 
@@ -87,6 +99,7 @@ public class HTTPParser {
                 .append(" ")
                 .append(responseData.get("Code"));
 
+        // in case of OPTIONS request, append Allow header
         if (responseData.containsKey("Allow")) {
             responseString.append("\r\nAllow: ")
                     .append(responseData.get("Allow"));
@@ -97,6 +110,7 @@ public class HTTPParser {
                 .append("\r\nServer: webserver.WebServer")
                 .append("\r\nConnection: Closed");
 
+        // append the content headers and the body if existent
         if (responseData.containsKey("Body")) {
             responseString.append("\r\nContent-Length: ")
                     .append(responseData.get("Content-Length"))

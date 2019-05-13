@@ -2,11 +2,14 @@ package webserver;
 
 import java.util.Scanner;
 
+
+/*
+    Class implementing the main method (the entry point)
+ */
 public class WebServer {
 
     private static final int MINIMUM_PORT_NUMBER = 1024;
     private static final int MAXIMUM_NO_THREADS = 16;
-    private static final String SERVER = "127.0.0.1";
 
     public static void main(String[] args) {
         int port;
@@ -33,15 +36,17 @@ public class WebServer {
                 System.exit(0);
             }
 
+            // Start the server thread
             server = new Server(port, maxNoThreads);
             new Thread(server).start();
 
+            // Wait for "Exit", "EXIT", "exit" etc. command in command-line to shutdown the server
             while (true) {
                 String line = scanner.nextLine();
                 if (line.toLowerCase().contentEquals("exit")) {
                     System.out.println("Shutting down the server");
 
-                    server.shutdown(WebServer.SERVER, port);
+                    server.shutdown(port);
                     break;
                 }
             }
