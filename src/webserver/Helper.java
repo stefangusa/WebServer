@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Helper {
 
-    private static final String ERROR_DIR = "www/error_pages";
+    private static final String ERROR_DIR = "www/html/error_pages";
 
     private final String rootDirectory;
     private String path;
@@ -37,7 +37,7 @@ public class Helper {
         this.responseData.put("Protocol", requestData.getOrDefault("Protocol", "HTTP/1.1"));
 
         if (this.requestData.containsKey("Code")) {
-            this.readFile(Helper.ERROR_DIR + "/BadRequest.html", true);
+            this.readPage(Helper.ERROR_DIR + "/BadRequest.html", true);
 
         } else if (this.requestData.get("Method").equals("OPTIONS")) {
             this.responseData.put("Code", ErrorCodes.NO_CONTENT);
@@ -52,29 +52,29 @@ public class Helper {
 
             if ((!file.exists() && !this.requestData.get("Method").equals("POST")) || file.isDirectory()) {
                 this.responseData.put("Code", ErrorCodes.NOT_FOUND);
-                this.readFile(Helper.ERROR_DIR + "/NotFound.html", true);
+                this.readPage(Helper.ERROR_DIR + "/NotFound.html", true);
 
             } else if (file.getName().startsWith(this.rootDirectory + Helper.ERROR_DIR)) {
                 this.responseData.put("Code", ErrorCodes.FORBIDDEN);
-                this.readFile(Helper.ERROR_DIR + "/Forbidden.html", true);
+                this.readPage(Helper.ERROR_DIR + "/Forbidden.html", true);
 
             } else {
                 switch (this.requestData.get("Method")) {
                     case "GET":
-                        readFile(this.path, true);
+                        this.readPage(this.path, true);
                         break;
                     case "HEAD":
-                        readFile(this.path, false);
+                        this.readPage(this.path, false);
                         break;
                     case "POST":
                     case "PUT":
-                        writeFile(false);
+                        this.writePage(false);
                         break;
                     case "PATCH":
-                        writeFile(true);
+                        this.writePage(true);
                         break;
                     case "DELETE":
-                        deleteFile();
+                        this.deletePage();
                         break;
                 }
             }
@@ -82,10 +82,10 @@ public class Helper {
     }
 
 
-    private void readFile(String filePath, boolean appendBody) {
+    private void readPage(String filePath, boolean appendBody) {
         boolean removeLock = false;
-        StringBuilder fileContent = new StringBuilder();
         File resourceFile = new File(filePath);
+        String fileContent;
 
         if (!this.locks.containsKey(filePath)) {
             this.locks.put(filePath, new ReentrantLock());
@@ -96,21 +96,14 @@ public class Helper {
         try {
             if (!resourceFile.exists()) {
                 this.responseData.put("Code", ErrorCodes.NOT_FOUND);
-                this.readFile(Helper.ERROR_DIR + "/NotFound.html", true);
+                this.readPage(Helper.ERROR_DIR + "/NotFound.html", true);
                 removeLock = true;
 
             } else {
                 if (appendBody) {
-                    BufferedReader reader = new BufferedReader(new FileReader(resourceFile));
-                    String line;
-
-                    while ((line = reader.readLine()) != null) {
-                        fileContent.append(line);
-                    }
-                    reader.close();
-
-                    this.responseData.put("Body", fileContent.toString());
-                    this.responseData.put("Content-Length", String.valueOf(fileContent.toString().getBytes().length));
+                    fileContent = this.readFile(resourceFile);
+                    this.responseData.put("Body", fileContent);
+                    this.responseData.put("Content-Length", String.valueOf(fileContent.getBytes().length));
                 }
 
                 this.responseData.put("Content-Type", Files.probeContentType(Path.of(filePath)));
@@ -133,10 +126,11 @@ public class Helper {
     }
 
 
-    private void writeFile(boolean flag) {
+    private void writePage(boolean flag) {
         boolean removeLock = false;
         boolean fileExists = true;
         File resourceFile = new File(this.path);
+        String fileContent;
 
         if (!this.locks.containsKey(this.path)) {
             this.locks.put(this.path, new ReentrantLock());
@@ -151,7 +145,7 @@ public class Helper {
         try {
             if (!fileExists && !this.requestData.get("Method").equals("POST")) {
                 this.responseData.put("Code", ErrorCodes.NOT_FOUND);
-                this.readFile(Helper.ERROR_DIR + "/NotFound.html", true);
+                this.readPage(Helper.ERROR_DIR + "/NotFound.html", true);
                 removeLock = true;
 
             } else {
@@ -159,9 +153,11 @@ public class Helper {
                 writer.write(this.requestData.get("Body"));
                 writer.close();
 
-                this.responseData.put("Content-Length", this.requestData.get("Content-Length"));
+                fileContent = this.readFile(resourceFile);
+
                 this.responseData.put("Content-Type", Files.probeContentType(Path.of(path)));
-                this.responseData.put("Body", this.requestData.get("Body"));
+                this.responseData.put("Body", fileContent);
+                this.responseData.put("Content-Length", String.valueOf(fileContent.getBytes().length));
 
                 if (!fileExists && this.requestData.get("Method").equals("POST")) {
                     this.responseData.put("Code", ErrorCodes.CREATED);
@@ -182,7 +178,7 @@ public class Helper {
         }
     }
 
-    private void deleteFile() {
+    private void deletePage() {
         boolean removeLock = false;
         File resourceFile = new File(this.rootDirectory + this.requestData.get("Resource"));
 
@@ -195,7 +191,7 @@ public class Helper {
         try {
             if (!resourceFile.exists()) {
                 this.responseData.put("Code", ErrorCodes.NOT_FOUND);
-                this.readFile(Helper.ERROR_DIR + "/NotFound.html", true);
+                this.readPage(Helper.ERROR_DIR + "/NotFound.html", true);
                 removeLock = true;
 
             } else if (!resourceFile.delete()) {
@@ -213,6 +209,26 @@ public class Helper {
             }
         }
     }
+
+    private String readFile(File resourceFile) {
+        StringBuilder fileContent = new StringBuilder();
+        String line;
+        BufferedReader reader;
+
+        try {
+            reader = new BufferedReader(new FileReader(resourceFile));
+            while ((line = reader.readLine()) != null) {
+                fileContent.append(line);
+            }
+            reader.close();
+        } catch (FileNotFoundException e) {
+
+        } catch (IOException e) {
+            return "";
+        }
+
+        return fileContent.toString();
+    }
 }
 
 
@@ -223,5 +239,5 @@ class ErrorCodes {
     static final String BAD = "400 Bad Request";
     static final String FORBIDDEN = "403 Forbidden";
     static final String NOT_FOUND = "404 Not Found";
-    static final String ISE = "500 Internal webserver.Server Error";
+    static final String ISE = "500 Internal Server Error";
 }
